@@ -1,0 +1,749 @@
+
+import json
+import os
+import re
+import argparse
+from io import StringIO
+from os import listdir, path
+from os.path import isfile, join
+from os import remove
+from os import path
+import shutil
+
+
+global contador
+
+def orden_alfanumerico(data):
+    convert = lambda text: int(text) if text.isdigit() else text.lower()
+    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ] 
+    return sorted(data, key=alphanum_key)
+
+def pdftoimage(pathDocumento, documentoPDF, carpetaImagenes):
+        
+        from pdf2image import convert_from_path
+        from pdf2image.exceptions import (
+                PDFInfoNotInstalledError,
+                PDFPageCountError,
+                PDFSyntaxError
+                )
+    
+        
+        nombrePDF=documentoPDF.split(".")[-2]
+        
+        outputDir = carpetaImagenes + "/" + nombrePDF + "/"
+    
+        if not os.path.exists(outputDir):
+            os.makedirs(outputDir)
+
+
+        
+        pages = convert_from_path(pathDocumento, poppler_path = r"C:\Program Files\poppler-21.03.0\Library\bin")
+        counter = 1
+        for page in pages:
+            myfile = outputDir +nombrePDF+ str(counter) +'.png'
+            counter = counter + 1
+            page.save(myfile, "PNG")
+        print("Documento: "+ documentoPDF+ " convertido")
+    
+def imagetotxt(documento, carpetaOrigen, carpetaDestino): # process text
+    #print("Llego aqui")
+    from PIL import Image
+    import pytesseract as pt
+    pt.pytesseract.tesseract_cmd = r"full path to the exe file"
+    pt.pytesseract.tesseract_cmd = r"C:\Program Files (x86)\Tesseract-OCR.exe\tesseract.exe"
+
+    contador = 1
+    pdfName = documento.split(".")[-2]
+    pathDocumento = carpetaOrigen + "/" +pdfName 
+    #print("Vamos a transcribir el documento: "+nombre_carpeta)
+    #print(pdfName)
+    for png in orden_alfanumerico(os.listdir(pathDocumento)):
+        #print("Página: " +str(contador))      
+        pngExtension = png.split(".")[-1]
+        pngName = png.split(".")[-2]
+        if pngExtension == "png":
+            #print(pngName)
+            #print("Soy png")
+            pngFile = pathDocumento + "/" + pngName + ".png"
+            #message = convert_png(pngFile)
+            img = Image.open(pngFile)     
+  
+            # describes image format in the output
+            #print(img)                          
+            # path where the tesseract module is installed
+            pt.pytesseract.tesseract_cmd =r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"
+            # converts the image to result and saves it into result variable
+            result = pt.image_to_string(img)   
+            # write text in a text file and save it to source path   
+            txtFile = carpetaDestino + "/" +  pdfName + ".txt"
+            with open(txtFile,mode ='a+') as file:     
+                file.write("\nNUEVA PAGINA " +str(contador)+ ":\n")
+                file.write(result)
+        contador = contador + 1
+    with open(txtFile,mode ='a+') as file:     
+            file.write("\nFINAL DOCUMENTO " +":\n")
+            #file.write(result)
+    print("Documento --- "+ pdfName + " --- terminado")
+    #print(" ")
+
+def pdftotxt(documento, carpetaOrigen, carpetaDestino, pages=None):
+        
+        
+        from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+        from pdfminer.converter import TextConverter
+        from pdfminer.layout import LAParams
+        from pdfminer.pdfpage import PDFPage
+     
+
+        if not pages:
+            pagenums = set()
+        else:
+            pagenums = set(pages)
+    
+        output = StringIO()
+        manager = PDFResourceManager(caching=True)
+        converter = TextConverter(manager, output, laparams=LAParams())
+
+        fileExtension = documento.split(".")[-1]
+        fileName = documento.split(".")[-2]
+        #print(fileExtension)
+        #print(fileName)
+        
+        if fileExtension == "pdf":
+            pdfFile = carpetaOrigen + "/" +  documento
+    
+            infile = open(pdfFile, 'rb')
+            interpreter = PDFPageInterpreter(manager, converter)
+            print("Vamos a transcribir " + documento)
+            for page in PDFPage.get_pages(infile, pagenums, maxpages=0, password="", caching=True, check_extractable=False):
+                interpreter.process_page(page)
+            infile.close()
+            converter.close()
+            text = output.getvalue()
+            output.close
+            print(text, file=open(carpetaDestino+"/"+fileName+".txt", "w", encoding='utf-8'))
+            print("Documento --- "+ fileName + " --- terminado")
+
+txt3= ""
+
+def comparacion(documento, carpeta1, carpeta2, carpeta3, carpetaresultadoFinal, resultadoFinal, txtimg):
+    
+
+    fileName = documento.split(".")[-2]
+    doc=str(fileName)+".txt"
+    #print(doc)
+    encontrado = False
+    contador = 1
+    for txt1 in os.listdir(carpeta1):
+        encontrado = False
+
+        if str(doc) == str(txt1):
+            
+            #txt3=txt1
+            for txt2 in os.listdir(carpeta2):
+                if (txt1 == txt2):
+                #print(" ")
+                    print(txt1 + " es igual a " +txt2)
+                    documentosFinales(txt1, txt2, carpeta1, carpeta2, carpeta3, carpetaresultadoFinal, resultadoFinal, txtimg)
+                
+                    #print("Exito: " +str(exito))
+                    encontrado=True
+                
+                    break
+        contador=contador+1
+        
+    if encontrado==False:
+        print(" ")
+        print("El documento: " +txt3+ " no tiene con quien comparar")
+        
+    
+    print(" ")
+
+def documentosFinales(text1, text2, carpeta1, carpeta2, carpeta3, carpetaresultadoFinal, resultadoFinal, txtimg):
+    
+    
+    txt1 = open(carpeta1+"/" +str(text1), "r")
+    txt2 = open(carpeta2+"/" +str(text2), "r", encoding='utf-8')
+    numpagina=0
+    pagina = " "
+    linea=1
+    nombreDocumento = text1.split(".")[-2]
+    imgexists = False
+    txtexists = False
+    paginaPDF = ""
+    carpetaresultadoFinal=carpetaresultadoFinal+"/"+str(nombreDocumento)
+
+    if not os.path.exists(carpetaresultadoFinal):
+        os.makedirs(carpetaresultadoFinal)
+
+    nombreJSON = carpetaresultadoFinal +"/documentoJSON"+ ".json"
+    
+    
+    if int(resultadoFinal) == 1  or int(resultadoFinal) == 5: docSoloTexto = carpetaresultadoFinal +"/soloTexto.txt" 
+    if int(resultadoFinal) == 2  or int(resultadoFinal) == 5: docSoloImagen = carpetaresultadoFinal +"/soloImagen.txt"
+    if int(resultadoFinal) == 3  or int(resultadoFinal) == 5: docTextoImagen = carpetaresultadoFinal +"/textoimagenesSinEtiqueta.txt"
+    if int(resultadoFinal) == 4  or int(resultadoFinal) == 5: docTextoImagenEtiqueta = carpetaresultadoFinal +"/textoimagenesConEtiqueta.txt"
+
+    
+
+
+    #Creamos el JSON con sus correspondientes etiquetas
+
+    documento={"Documento": nombreDocumento}
+    with open (nombreJSON, "a+", encoding = 'utf-8_sig') as g:
+        json.dump(documento,g,sort_keys=True,indent =4,ensure_ascii=False)
+
+    if int(resultadoFinal) == 1  or int(resultadoFinal) == 5: print("Documento: " +str(nombreDocumento), file=open(docSoloTexto, "a+", encoding='utf-8'))
+    if int(resultadoFinal) == 2  or int(resultadoFinal) == 5: print("Documento: " +str(nombreDocumento), file=open(docSoloImagen, "a+", encoding='utf-8'))
+    if int(resultadoFinal) == 3  or int(resultadoFinal) == 5: print("Documento: " +str(nombreDocumento), file=open(docTextoImagen, "a+", encoding='utf-8'))
+    if int(resultadoFinal) == 4  or int(resultadoFinal) == 5: print("Documento: " +str(nombreDocumento), file=open(docTextoImagenEtiqueta, "a+", encoding='utf-8'))
+
+
+
+    final = True
+    while(final == True):
+
+        
+        linea1 = txt1.readline()
+
+        
+        
+        if str(len(linea1)) == chr(48):
+            print("Documento finalizado")
+            final= False
+            break
+        
+         
+
+
+
+        else:
+
+            igual=False
+        
+            txt2.seek(0)  
+
+            while(True):   
+
+
+                linea2 = txt2.readline()
+
+
+
+                d=dict()
+                for i in range(len(linea1)+1):
+                    d[i]=dict()
+                    d[i][0]=i
+                for i in range(len(linea2)+1):
+                    d[0][i] = i
+                for i in range(1, len(linea1)+1):
+                    for j in range(1, len(linea2)+1):
+                        d[i][j] = min(d[i][j-1]+1, d[i-1][j]+1, d[i-1][j-1]+(not linea1[i-1] == linea2[j-1]))
+                distanciaLevenshtein=((d[len(linea1)][len(linea2)])/(len(linea1))*100)
+                if distanciaLevenshtein < 30:
+                    if linea1[0]==chr(00) or linea1[0]==chr(32) or linea1[0]==chr(10) or linea1[0]==chr(12)  or ord(linea1[0])==12:
+                        break
+                    else:
+                        txtexists = True
+                        #print ("imgexists: " +str(imgexists))
+                        if int(resultadoFinal) == 1  or int(resultadoFinal) == 5:
+                            print(str(linea1), file=open(docSoloTexto, "a+", encoding='utf-8'))
+                        if int(resultadoFinal) == 3  or int(resultadoFinal) == 5:
+                            print(str(linea1), file=open(docTextoImagen, "a+", encoding='utf-8'))
+                        if int(resultadoFinal) == 4 or int(resultadoFinal) == 5:
+                            print(str(linea1), file=open(docTextoImagenEtiqueta, "a+", encoding='utf-8'))
+                        texto = {"Tipo": "Texto",
+                                 "Linea":str(linea),
+                                 "Texto": str(linea1).strip('\n')
+                                }
+                        escribirjson(texto, nombreJSON, pagina)
+                        print(str(linea1), file=open(txtimg +"/texto.txt", "a+", encoding='utf-8'))
+                        linea=linea+1
+                        igual=True
+                        break
+                
+            
+                if not linea2:
+                    if igual==False:
+                        if (linea1[0]==chr(78) and linea1[1]==chr(85) and linea1[2]==chr(69)) or (linea1[0]==chr(70) and linea1[1]==chr(73) and linea1[2]==chr(78) and linea1[3]==chr(65) and linea1[4]==chr(76) and linea1[6]==chr(68) and linea1[7]==chr(79) and linea1[8]==chr(67) and linea1[9]==chr(85) and linea1[10]==chr(77) and linea1[11]==chr(69) and linea1[12]==chr(78) and linea1[13]==chr(84) and linea1[14]==chr(79)) :
+                            if(numpagina!=0):
+                                if(imgexists==True and txtexists == True):
+                                    similitudimgtxt(txtimg+"/"+"texto.txt", txtimg+"/"+"imagen.txt", pagina, nombreJSON)
+
+
+                                txtexists = False
+                                imgexists=False
+
+                            linea=linea+1
+                            numpagina = numpagina+1
+
+                            if (linea1[0]==chr(78) and linea1[1]==chr(85) and linea1[2]==chr(69)): 
+                                paginaPDF=carpeta3+"/" +str(nombreDocumento)+"/" +str(nombreDocumento)+str(numpagina)+".png"
+                                pagina="Pagina " + str(numpagina)
+                                with open(nombreJSON, encoding = 'utf-8_sig') as json_file:
+                                    json_decoded = json.load(json_file)
+
+                                json_decoded[pagina] = []
+
+                                with open(nombreJSON, "w", encoding = 'utf-8_sig') as json_file:
+                                    json.dump(json_decoded, json_file)
+                                
+                                if path.exists(txtimg+"/"+"texto.txt"):
+                                    remove(txtimg+"/"+"texto.txt")
+
+                                if path.exists(txtimg+"/imagen.txt"):
+                                    remove(txtimg+"/imagen.txt")
+
+                            
+                        else:
+                            if len(linea1) > 1:
+                                if int(resultadoFinal) == 2 or int(resultadoFinal) == 5:
+                                    print(str(linea1), file=open(docSoloImagen, "a+", encoding='utf-8'))
+                                if int(resultadoFinal) == 3 or int(resultadoFinal) == 5:
+                                    print(str(linea1), file=open(docTextoImagen, "a+", encoding='utf-8'))
+                                if int(resultadoFinal) == 4 or int(resultadoFinal) == 5:
+                                    print("<imagen>" +str(linea1).strip('\n')+"</imagen>" , file=open(docTextoImagenEtiqueta, "a+", encoding='utf-8'))
+                                if ord(linea1[0])==12:
+                                    #print("Ya no sales")
+                                    break
+                                imagen = {"Tipo": "Imagen",
+                                        "Linea":str(linea),
+                                        "Texto": str(linea1).strip('\n')
+                                        }
+                                escribirjson(imagen, nombreJSON, pagina)
+                                print(str(linea1), file=open(txtimg +"/imagen.txt", "a+", encoding='utf-8'))
+                                imgexists = True
+                                linea=linea+1
+                    #print(igual)
+                    break
+
+
+            if not linea1:
+                    #print("Final 1")
+                    break
+
+def escribirjson(new_data, filename, pagina):
+    with open(filename,'r+', encoding='utf-8-sig') as file:
+        # First we load existing data into a dict.
+        file_data = json.load(file)
+        # Join new_data with file_data inside emp_details
+        file_data[pagina].append(new_data)
+        # Sets file's current position at offset.
+        file.seek(0)
+        # convert back to json.
+        json.dump(file_data, file, indent = 4)
+
+def similitudimgtxt(texto, imagen, numpagina, nombreJSON):
+    
+    from nltk.tokenize import word_tokenize, sent_tokenize
+    import gensim
+    import numpy as np
+
+    file_docs = []
+    with open (texto, encoding='utf-8') as f:
+        tokens = sent_tokenize(f.read())
+        for line in tokens:
+            file_docs.append(line)
+
+    #print("Number of documents:",len(file_docs))
+    #print("Documento:" ,str(file_docs))
+
+
+
+    gen_docs = [[w.lower() for w in word_tokenize(text)] 
+                for text in file_docs]
+
+
+    #print("Documento 2:" +str(gen_docs))
+
+    dictionary = gensim.corpora.Dictionary(gen_docs)
+    #print(dictionary.token2id)
+
+    corpus = [dictionary.doc2bow(gen_doc) for gen_doc in gen_docs]
+    #print(corpus)
+
+    tf_idf = gensim.models.TfidfModel(corpus)
+    
+
+    # building the index
+    sims = gensim.similarities.Similarity(r'C:\Users\franm\OneDrive\Escritorio\TFGDef\similitud',tf_idf[corpus], num_features=len(dictionary))
+
+    file2_docs = []
+
+    with open (imagen,  encoding='utf-8') as f:
+        tokens = sent_tokenize(f.read())
+        for line in tokens:
+            file2_docs.append(line)
+
+
+    for line in file2_docs:
+        query_doc = [w.lower() for w in word_tokenize(line)]
+        query_doc_bow = dictionary.doc2bow(query_doc) 
+
+
+    avg_sims = [] # array of averages
+
+    # for line in query documents
+    for line in file2_docs:
+            # tokenize words
+            query_doc = [w.lower() for w in word_tokenize(line)]
+            # create bag of words
+            query_doc_bow = dictionary.doc2bow(query_doc)
+            # find similarity for each document
+            query_doc_tf_idf = tf_idf[query_doc_bow]
+            # print (document_number, document_similarity)
+            #print('Comparing Result:', sims[query_doc_tf_idf]) 
+            # calculate sum of similarities for each query doc
+            sum_of_sims =(np.sum(sims[query_doc_tf_idf], dtype=np.float32))
+            # calculate average of similarity for each query doc
+            avg = sum_of_sims / len(file_docs)
+            # print average of similarity for each query doc
+            #print(f'avg: {sum_of_sims / len(file_docs)}')
+            # add average values into array
+            avg_sims.append(avg)  
+            # calculate total average
+            total_avg = np.sum(avg_sims, dtype=float)
+            # round the value and multiply by 100 to format it as percentage
+            percentage_of_similarity = round(float(total_avg) * 100)
+            # if percentage is greater than 100
+            # that means documents are almost same
+            if percentage_of_similarity >= 100:
+                percentage_of_similarity = 100
+
+    
+
+    similitud = {"Similitud Imagen-Texto": percentage_of_similarity }
+
+    escribirjson(similitud, nombreJSON, numpagina )
+
+
+    
+
+
+    
+
+
+            
+            
+
+    
+
+
+def main():
+
+    parser = argparse.ArgumentParser()
+ 
+
+    parser.add_argument("-rutaPDF", "--input-dir1", dest="carpetaPDF", required=True)
+    parser.add_argument("-Destino", "--input-dir2", dest="carpetaDestino", required=True)
+    parser.add_argument("-Eleccion", "--input-dir3", dest="eleccion", required=True)
+    parser.add_argument("-Opcionales", "--input-dir4", dest="resultado", required=True)
+                            
+    args=parser.parse_args()
+
+    carpetaPDF = args.carpetaPDF
+    carpetaDestino = args.carpetaDestino
+    eleccion = args.eleccion
+    resultadoFinal = args.resultado
+
+    validezParametro1 = 0
+    validezParametro2 = 0
+    validezParametro3 = 0
+    validezParametro4 = 0
+
+
+    if path.exists(carpetaPDF)==False:
+        validezParametro1 = 1
+        #print("La ruta donde se encuentran los PDF no existe")
+        #exit()
+    if path.exists(carpetaDestino)==False:
+        validezParametro2=1
+        #print("La ruta para gaurdar los documentos no existe")
+        #exit()
+    if int(eleccion) <=int(0) or int(eleccion) >=int(3):
+        validezParametro3=1
+        #print("Numero eleccion no valido")
+        #exit()
+    if int(resultadoFinal) <int(0) or int(resultadoFinal) >=int(6) :
+        validezParametro4 =1
+        #print("Numero de documentos opcionales no valido")
+        #exit()
+
+    if int(validezParametro1) == int(1) or int(validezParametro2) == int(1) or int(validezParametro3) == int(1) or int(validezParametro4) == int(1) :
+        print(" ")
+        print("No se puede iniciar el sistema. Compruebe la validez de los parámetros: ")
+        print(" ")
+        if int(validezParametro1) == int(1):
+            print("Parametro rutaPDF: no válido")
+        if int(validezParametro1) != int(1):
+            print("Parametro rutaPDF: válido") 
+        if int(validezParametro2) == int(1):
+            print("Parametro Destino: no válido")
+        if int(validezParametro2) != int(1):
+            print("Parametro Destino: válido") 
+        if int(validezParametro3) == int(1):
+            print("Parametro Eleccion: no válido")
+        if int(validezParametro3) != int(1):
+            print("Parametro Eleccion: válido") 
+        if int(validezParametro4) == int(1):
+            print("Parametro Opcionales: no válido")
+        if int(validezParametro4) != int(1):
+            print("Parametro Opcionales: válido")
+        print(" ") 
+        exit()
+
+
+    if int(eleccion) == 1:
+        print("Ha elegido que documentos PDF realizar")
+                     
+    elif int(eleccion) == 2:
+        print("Ha elegido realizar todos los PDF de la carpeta")
+
+
+
+    if int(resultadoFinal) == 1:
+        print("Ha elegido solo texto plano")
+                     
+    elif int(resultadoFinal) == 2:
+        print("Ha elegido solo imagenes")
+                      
+    elif int(resultadoFinal) == 3:
+        print("Ha elegido texto plano + imagenes (Sin etiquetas de imagen) ")
+                     
+    elif int(resultadoFinal) == 4:
+        print("Ha elegido texto plano + imagenes (Con etiquetas de imagen) ")
+                      
+    elif int(resultadoFinal) == 5:
+        print("Ha elegido completo")
+                     
+    seleccionarPDF(carpetaPDF, carpetaDestino, eleccion, resultadoFinal)
+    
+
+def seleccionarPDF(carpetaPDF, carpetaDestino, eleccion, resultadoFinal):
+
+    
+   
+    
+    #carpetaPDF = carpeta + "/PDF/" 
+    carpetaPDF2Images = carpetaDestino + "/pdf2images"
+    carpetaPDFImgTxt = carpetaDestino + "/PDF-IMG-TXT"
+    carpetaPDFTxt = carpetaDestino + "/PDF-TXT"
+    #carpetacomparacion = carpetaDestino + "/comparacion"
+    txtimg = carpetaDestino + "/txtimg"
+    carpetaresultadoFinal = carpetaDestino + "/resultadoFinal"
+    
+    errorBorrar = True
+    #Borrar carpetas
+    while (errorBorrar == True):
+        print("¿Desea borrar los documentos comparados? (Y/N)")
+        borrar=input()
+        if borrar == chr(89) or borrar == chr(121):
+            if path.exists(carpetaPDF2Images):
+                shutil.rmtree(carpetaPDF2Images)
+            if path.exists(carpetaPDFImgTxt):
+                shutil.rmtree(carpetaPDFImgTxt)
+            if path.exists(carpetaPDFTxt):
+                shutil.rmtree(carpetaPDFTxt)
+            #if path.exists(carpetacomparacion):
+                #shutil.rmtree(carpetacomparacion)
+            if path.exists(txtimg):
+                shutil.rmtree(txtimg)
+            if path.exists(carpetaresultadoFinal):
+                shutil.rmtree(carpetaresultadoFinal)
+            errorBorrar = False
+        elif borrar == chr(78) or borrar == chr(110):
+            errorBorrar = False
+        else:
+            print("Letra incorrecta")
+        
+
+    
+ 
+
+    
+    
+    
+    if not os.path.exists(carpetaPDF2Images):
+        os.makedirs(carpetaPDF2Images)
+        #print("Carpeta pdf2images creada")
+
+    
+    if not os.path.exists(carpetaPDFImgTxt):
+        os.makedirs(carpetaPDFImgTxt)
+        #print("Carpeta PDF-IMG-TXT creada")
+
+    
+    if not os.path.exists(carpetaPDFTxt):
+        os.makedirs(carpetaPDFTxt)
+        #print("Carpeta PDF-TXT creada")
+
+    """
+    if not os.path.exists(carpetacomparacion):
+        os.makedirs(carpetacomparacion)
+        #print("Carpeta comparacion creada")
+    """
+
+    if not os.path.exists(txtimg):
+        os.makedirs(txtimg)
+        #print("Carpeta txtimg creada")
+
+    if not os.path.exists(carpetaresultadoFinal):
+        os.makedirs(carpetaresultadoFinal)
+        #print("Carpeta resultadoFinal creada")
+
+    
+    if int(eleccion)==int(1):
+
+        bucle=True
+        
+        tamanoCarpeta = 0
+        for txt1 in os.listdir(carpetaPDF):
+            pdfExtension = txt1.split(".")[-1]
+            if pdfExtension == "pdf":
+                tamanoCarpeta=tamanoCarpeta+1
+
+        #print("Tamaño carpeta = " + str(tamanoCarpeta))
+        
+
+        while bucle == True:
+
+            numDoc = 1
+            for txt1 in os.listdir(carpetaPDF):
+                pdfExtension = txt1.split(".")[-1]
+                if pdfExtension == "pdf":
+                    print(str(numDoc)+". " +str(txt1))
+                    print(" ")
+                    numDoc=numDoc+1
+            print("Introduce el numero del documento. Si quiere finalizar el programa, pulse 0.")
+
+            documento =input()
+            
+            pathDocumento= " "
+            documentoElegido=" "
+
+        
+
+            contador = 1
+
+            if documento.isnumeric() == False:
+                print("Introduzca un número")
+                
+            elif str(documento)=="0":
+                bucle=False
+                print("Programa finalizado")
+                shutil.rmtree(carpetaPDF2Images)
+                
+                shutil.rmtree(carpetaPDFImgTxt)
+                    
+                shutil.rmtree(carpetaPDFTxt)
+                    
+                shutil.rmtree(txtimg)
+                
+                break
+                
+            
+            elif int(documento) > int(tamanoCarpeta) or int(documento)<0:
+                print("Numero incorrecto")
+
+            else:
+                for txt1 in os.listdir(carpetaPDF):
+                    if str(contador)==str(documento):
+                        pdfExtension = txt1.split(".")[-1]
+                        if pdfExtension == "pdf":
+                            documentoElegido=txt1
+                            pathDocumento=carpetaPDF+ "/" + documentoElegido
+                            print("Documento: " + str(txt1)+ ".\n")
+                            break
+                    else:
+                        contador=contador+1
+
+            
+                print(" ")
+                print("Convertimos PDF a Imagenes")
+                print(" ")
+                pdftoimage(pathDocumento,documentoElegido, carpetaPDF2Images)
+                    
+                    
+                print(" ")
+                print("PDF -> Imagenes -> txt")
+                print(" ")
+                imagetotxt(documentoElegido, carpetaPDF2Images ,carpetaPDFImgTxt)
+                
+                    
+                print(" ")
+                print("PDF -> txt (sin imagenes) ")
+                print(" ")
+                pdftotxt(documentoElegido, carpetaPDF, carpetaPDFTxt)
+                   
+                    
+                print(" ")
+                print("Comparación")
+                print(" ")
+                comparacion(documentoElegido, carpetaPDFImgTxt,carpetaPDFTxt, carpetaPDF2Images,carpetaresultadoFinal, resultadoFinal, txtimg)
+
+         
+
+    if int(eleccion)==int(2):
+
+        pathDocumento= " "
+        documentoElegido=" "
+
+        for txt1 in os.listdir(carpetaPDF):
+            pdfExtension = txt1.split(".")[-1]
+            if pdfExtension == "pdf":
+                documentoElegido=txt1
+                pathDocumento=carpetaPDF+ "/" + documentoElegido
+                print("Documento: " + str(txt1)+ ".\n")
+                
+            
+                print(" ")
+                print("Convertimos PDF a Imagenes")
+                print(" ")
+                pdftoimage(pathDocumento,documentoElegido, carpetaPDF2Images)
+                
+                
+                print(" ")
+                print("PDF -> Imagenes -> txt")
+                print(" ")
+                imagetotxt(documentoElegido, carpetaPDF2Images ,carpetaPDFImgTxt)
+
+                
+                print(" ")
+                print("PDF -> txt (sin imagenes) ")
+                print(" ")
+                pdftotxt(documentoElegido, carpetaPDF, carpetaPDFTxt)
+            
+                
+                print(" ")
+                print("Comparación")
+                print(" ")
+                comparacion(documentoElegido, carpetaPDFImgTxt,carpetaPDFTxt, carpetaPDF2Images,carpetaresultadoFinal, resultadoFinal, txtimg)
+
+
+        shutil.rmtree(carpetaPDF2Images)
+                
+        shutil.rmtree(carpetaPDFImgTxt)
+                
+        shutil.rmtree(carpetaPDFTxt)
+               
+        #shutil.rmtree(carpetacomparacion)
+                
+        shutil.rmtree(txtimg)
+               
+        #shutil.rmtree(carpetaresultadoFinal)         
+            
+      
+
+            
+   
+    
+
+
+
+        
+if __name__ == "__main__":
+    
+    
+    main()
+
+
